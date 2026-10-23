@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#090d16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LinguaFlow">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/svgs/solid/language.svg">
+  <title>LinguaFlow - 智慧語音與專有名詞翻譯器</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Style Sheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-background">
+    <div class="bg-glow blob-1"></div>
+    <div class="bg-glow blob-2"></div>
+    <div class="bg-glow blob-3"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo">
+        <div class="logo-icon">
+          <i class="fa-solid fa-language"></i>
+        </div>
+        <div class="logo-text">
+          <h1>LinguaFlow</h1>
+          <span class="tagline">流暢語意與專有名詞精準翻譯</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Domain Terminology Selector -->
+        <div class="domain-selector" title="選擇專有名詞領域以優化翻譯精準度">
+          <i class="fa-solid fa-book-bookmark"></i>
+          <select id="domainSelect">
+            <option value="general">通用自然語意</option>
+            <option value="tech">科技與 AI 資訊</option>
+            <option value="anime">動漫、遊戲與次文化</option>
+            <option value="business">商業與金融貿易</option>
+            <option value="travel">旅遊、美食與文化</option>
+            <option value="medical">生醫與學術研究</option>
+          </select>
+        </div>
+
+        <button id="customTermsBtn" class="btn btn-secondary" title="自訂專有名詞字典">
+          <i class="fa-solid fa-list-check"></i>
+          <span>自訂字典</span>
+        </button>
+
+        <button id="apiSettingsBtn" class="btn btn-icon" title="API 設定 (可填寫 Gemini/OpenAI Key)">
+          <i class="fa-solid fa-gear"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="translation-layout">
+      <!-- Top Bar Controls: Language Selector -->
+      <div class="language-bar glass-panel">
+        <div class="lang-select-group">
+          <label for="sourceLang">來源語言</label>
+          <select id="sourceLang">
+            <option value="zh-TW" selected>繁體中文</option>
+            <option value="en-US">English (英文)</option>
+            <option value="ja-JP">日本語 (日文)</option>
+          </select>
+        </div>
+
+        <button id="swapLangBtn" class="btn btn-icon btn-swap" title="對調語言">
+          <i class="fa-solid fa-arrows-rotate"></i>
+        </button>
+
+        <div class="lang-select-group">
+          <label for="targetLang">目標語言</label>
+          <select id="targetLang">
+            <option value="en-US">English (英文)</option>
+            <option value="ja-JP">日本語 (日文)</option>
+            <option value="zh-TW">繁體中文</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Grid Cards Container -->
+      <div class="cards-grid">
+        <!-- Input Card -->
+        <div class="card glass-panel input-card">
+          <div class="card-header">
+            <span class="card-title">
+              <i class="fa-solid fa-keyboard"></i> 輸入內容 / 語音錄製
+            </span>
+            <div class="input-actions">
+              <button id="clearInputBtn" class="btn-text" title="清空文字">
+                <i class="fa-solid fa-trash-can"></i> 清空
+              </button>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <!-- Textarea -->
+            <textarea id="sourceText" placeholder="請在此輸入文字，或下方點擊「開始錄音」以語音輸入..." rows="6"></textarea>
+
+            <!-- Audio Recording Control Panel -->
+            <div id="recordingPanel" class="recording-panel">
+              <div class="recording-visualizer">
+                <canvas id="waveformCanvas" width="400" height="60"></canvas>
+              </div>
+              
+              <div class="recording-status">
+                <div class="pulse-indicator red-dot" id="recordingDot"></div>
+                <span id="recordingTimer">00:00</span>
+                <span id="recordingTextState">正在錄音中... 講完請按下方「輸入完畢」</span>
+              </div>
+            </div>
+
+            <!-- Term Detection Notice / Highlights -->
+            <div id="detectedTermsBadge" class="detected-terms-badge hidden">
+              <i class="fa-solid fa-bullseye"></i> 偵測到的專有名詞：
+              <span id="termsList"></span>
+            </div>
+          </div>
+
+          <div class="card-footer">
+            <div class="character-count">
+              <span id="charCount">0</span> 個字
+            </div>
+
+            <div class="action-buttons">
+              <!-- Recording Toggle Button -->
+              <button id="recordBtn" class="btn btn-record" title="開始錄製語音">
+                <i class="fa-solid fa-microphone"></i>
+                <span id="recordBtnText">開始錄音</span>
+              </button>
+
+              <!-- Finish Recording & Translate Button -->
+              <button id="finishRecordBtn" class="btn btn-accent hidden" title="結束錄音並開始轉譯翻譯">
+                <i class="fa-solid fa-circle-stop"></i>
+                <span>輸入完畢並翻譯</span>
+              </button>
+
+              <!-- Standard Translate Button for Text -->
+              <button id="translateBtn" class="btn btn-primary" title="執行翻譯">
+                <i class="fa-solid fa-bolt"></i>
+                <span>領域流暢翻譯</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Output Card -->
+        <div class="card glass-panel output-card">
+          <div class="card-header">
+            <span class="card-title">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> 流暢翻譯結果
+            </span>
+            <div class="output-actions">
+              <span id="translationEngineBadge" class="engine-badge">
+                <i class="fa-solid fa-brain"></i> 術語流暢引擎
+              </span>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <!-- Loading Overlay -->
+            <div id="translationLoading" class="loading-overlay hidden">
+              <div class="spinner"></div>
+              <span>正在分析語意與專有名詞...</span>
+            </div>
+
+            <!-- Result Display -->
+            <div id="targetText" class="result-text placeholder-text">
+              翻譯結果將顯示於此...
+            </div>
+
+            <!-- Recognized Term Breakdown Panel -->
+            <div id="termBreakdownPanel" class="term-breakdown hidden">
+              <h4><i class="fa-solid fa-tags"></i> 本次套用的專有名詞與對照：</h4>
+              <div id="termTagsContainer" class="term-tags-container"></div>
+            </div>
+          </div>
+
+          <div class="card-footer">
+            <div class="result-actions">
+              <button id="speakResultBtn" class="btn btn-secondary btn-sm" title="語音朗讀結果" disabled>
+                <i class="fa-solid fa-volume-high"></i> 朗讀
+              </button>
+
+              <button id="copyResultBtn" class="btn btn-secondary btn-sm" title="複製譯文" disabled>
+                <i class="fa-solid fa-copy"></i> 複製
+              </button>
+
+              <button id="favResultBtn" class="btn btn-secondary btn-sm" title="收藏翻譯" disabled>
+                <i class="fa-regular fa-star"></i> 收藏
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History & Custom Terms Section -->
+      <section class="history-section glass-panel">
+        <div class="section-header">
+          <h3><i class="fa-solid fa-clock-rotate-left"></i> 最近翻譯歷史紀錄</h3>
+          <button id="clearHistoryBtn" class="btn-text">
+            <i class="fa-solid fa-trash-can"></i> 清除歷史
+          </button>
+        </div>
+        <div id="historyList" class="history-list">
+          <div class="empty-state">尚無翻譯紀錄</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Modals -->
+
+    <!-- Custom Terminology Glossary Modal -->
+    <div id="glossaryModal" class="modal-backdrop hidden">
+      <div class="modal-content glass-panel">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-book"></i> 自訂專有名詞字典 (Custom Glossaries)</h3>
+          <button class="close-modal-btn" data-modal="glossaryModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">可新增特定領域的專有名詞對照，讓翻譯時精準轉換，不盲目直譯。</p>
+          
+          <form id="addTermForm" class="add-term-form">
+            <input type="text" id="termSrc" placeholder="原專有名詞 (例如: Antigravity)" required>
+            <input type="text" id="termTgt" placeholder="目標語言翻譯 (例如: 反重力)" required>
+            <select id="termDomain">
+              <option value="custom">自訂</option>
+              <option value="tech">科技</option>
+              <option value="anime">動漫/遊戲</option>
+              <option value="business">商業</option>
+            </select>
+            <button type="submit" class="btn btn-primary">
+              <i class="fa-solid fa-plus"></i> 新增
+            </button>
+          </form>
+
+          <div class="glossary-table-wrapper">
+            <table class="glossary-table">
+              <thead>
+                <tr>
+                  <th>原專有名詞</th>
+                  <th>對應翻譯</th>
+                  <th>分類</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="glossaryTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Settings Modal -->
+    <div id="apiModal" class="modal-backdrop hidden">
+      <div class="modal-content glass-panel">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-sliders"></i> API 服務與進階設定</h3>
+          <button class="close-modal-btn" data-modal="apiModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">預設情況下使用內建智慧術語轉譯引擎與瀏覽器語音辨識。若填寫 Key 可切換成 AI 雲端模型。</p>
+          
+          <div class="setting-group">
+            <label for="aiProviderSelect">AI 翻譯服務提供商</label>
+            <select id="aiProviderSelect">
+              <option value="builtin">內建智慧術語引擎 (免 API Key)</option>
+              <option value="gemini">Google Gemini AI</option>
+              <option value="openai">OpenAI (ChatGPT / Whisper)</option>
+            </select>
+          </div>
+
+          <div class="setting-group hidden" id="apiKeyContainer">
+            <label for="apiKeyInput">API Key</label>
+            <input type="password" id="apiKeyInput" placeholder="請輸入 API Key (例如: AIzaSy... 或 sk-...)">
+            <small>Key 僅會儲存於您的瀏覽器本機 LocalStorage 中，絕不上傳第三方伺服器。</small>
+          </div>
+
+          <div class="setting-group">
+            <label for="sttEngineSelect">語音輸入辨識引擎</label>
+            <select id="sttEngineSelect">
+              <option value="browser">瀏覽器標準 Speech API (線上/實時高效率)</option>
+              <option value="gemini">Google Gemini AI 語音辨識 (需 Gemini Key)</option>
+              <option value="whisper">Whisper 高精準語音轉寫 (需 OpenAI Key)</option>
+            </select>
+          </div>
+
+          <div class="modal-actions">
+            <button id="saveApiSettingsBtn" class="btn btn-primary">儲存設定</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="js/storage.js"></script>
+  <script src="js/dictionary.js"></script>
+  <script src="js/recorder.js"></script>
+  <script src="js/stt.js"></script>
+  <script src="js/translator.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
