@@ -211,7 +211,11 @@ const STTEngine = {
 
     const base64Audio = await this._blobToBase64(audioBlob);
     const rawMime = audioBlob.type || 'audio/webm';
-    const cleanMime = rawMime.split(';')[0];
+    let cleanMime = rawMime.split(';')[0];
+    // iOS Safari records AAC in an audio/mp4 container; Gemini expects audio/aac
+    if (cleanMime === 'audio/mp4' || cleanMime === 'video/mp4') {
+      cleanMime = 'audio/aac';
+    }
 
     let langDescription = 'its natural spoken language';
     if (langCode.startsWith('ja')) langDescription = 'Japanese (日本語/楽曲の歌詞)';

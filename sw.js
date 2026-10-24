@@ -1,5 +1,5 @@
 // LinguaFlow Service Worker for PWA & Offline Support
-const CACHE_NAME = 'linguaflow-v1';
+const CACHE_NAME = 'linguaflow-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

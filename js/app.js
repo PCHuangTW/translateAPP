@@ -181,6 +181,11 @@ document.addEventListener('DOMContentLoaded', () => {
         apiKeyContainer.classList.add('hidden');
       } else {
         apiKeyContainer.classList.remove('hidden');
+        if (aiProviderSelect.value === 'gemini') {
+          sttEngineSelect.value = 'gemini';
+        } else if (aiProviderSelect.value === 'openai') {
+          sttEngineSelect.value = 'whisper';
+        }
       }
     });
 
@@ -203,12 +208,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const settings = StorageManager.getSettings();
       const hasBrowserSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
-      // Determine strategy: Browser Native STT or Cloud Audio Recording
-      const useBrowserSTT = (settings.sttEngine === 'browser' || !settings.apiKey) && hasBrowserSpeech;
+      // Determine strategy: If user provided an API key (Gemini / OpenAI), always prefer Cloud Audio Recording
+      const isCloudSTT = !!settings.apiKey && (settings.sttEngine === 'gemini' || settings.sttEngine === 'whisper' || settings.provider === 'gemini' || settings.provider === 'openai');
+      const useBrowserSTT = !isCloudSTT && hasBrowserSpeech;
 
       if (!hasBrowserSpeech && !settings.apiKey) {
-        showToast('提示：當前瀏覽器（如 iOS Safari）不支援免金鑰網頁語音辨識。請點擊文字框使用手機鍵盤上的「麥克風」輸入，或於設定輸入 API Key。', 'warning');
+        showToast('提示：當前瀏覽器不支援免金鑰網頁語音辨識。請點擊右上角齒輪輸入 Gemini Key 以啟用雲端歌曲/語音轉寫。', 'warning');
         return;
+      }
+
+      if (!settings.apiKey && sourceLangSelect.value === 'ja-JP') {
+        showToast('提示：免金鑰瀏覽器辨識無法分離歌曲伴奏與歌詞。若要辨識日文歌，請至右上角設定輸入 Gemini Key。', 'warning');
       }
 
       try {
