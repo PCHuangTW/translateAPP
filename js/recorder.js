@@ -40,7 +40,23 @@ class AudioRecorder {
     }
 
     try {
-      this.audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // High-fidelity audio constraints for speech, song lyrics, and mobile microphone reception
+      const audioConstraints = {
+        audio: {
+          autoGainControl: true,       // 強制開啟自動增益控制，補償距離與小聲收音
+          noiseSuppression: false,     // 關閉通話降噪，防止歌曲伴奏與拉長母音被當成雜訊切斷
+          echoCancellation: false,     // 關閉迴音消除，保留純淨樂曲動態
+          channelCount: 1,
+          sampleRate: { ideal: 48000 }
+        }
+      };
+
+      try {
+        this.audioStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+      } catch (e) {
+        // Fallback to basic audio constraint if browser rejects advanced constraints
+        this.audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       this.audioChunks = [];
 
       // Determine supported MIME type for cross-platform mobile compatibility

@@ -169,6 +169,17 @@ const STTEngine = {
     if (langCode.startsWith('ja')) whisperLang = 'ja';
     formData.append('language', whisperLang);
 
+    // Contextual prompt to force traditional Chinese or song lyric transcription
+    let whisperPrompt = '';
+    if (whisperLang === 'zh') {
+      whisperPrompt = '以下是繁體中文語音轉寫，請務必使用台灣繁體中文輸出。';
+    } else if (whisperLang === 'ja') {
+      whisperPrompt = '以下は日本語の音声または楽曲の歌詞の書き起こしです。歌声やBGMがあっても最初から最後まで正確に文字起こししてください。';
+    }
+    if (whisperPrompt) {
+      formData.append('prompt', whisperPrompt);
+    }
+
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
@@ -183,7 +194,11 @@ const STTEngine = {
     }
 
     const data = await response.json();
-    return data.text || '';
+    let textResult = data.text || '';
+    if (langCode.startsWith('zh') && typeof TranslatorEngine !== 'undefined' && typeof TranslatorEngine._toTraditional === 'function') {
+      textResult = TranslatorEngine._toTraditional(textResult);
+    }
+    return textResult;
   },
 
   /**
@@ -198,12 +213,29 @@ const STTEngine = {
     const rawMime = audioBlob.type || 'audio/webm';
     const cleanMime = rawMime.split(';')[0];
 
-    const promptText = `Please accurately transcribe the following audio recording into written text in its natural spoken language (${langCode}). Provide ONLY the exact transcribed text, without commentary, markdown wrappers, or timestamps.`;
+    let langDescription = 'its natural spoken language';
+    if (langCode.startsWith('ja')) langDescription = 'Japanese (日本語/楽曲の歌詞)';
+    else if (langCode.startsWith('zh')) langDescription = 'Traditional Chinese (繁體中文)';
+    else if (langCode.startsWith('en')) langDescription = 'English';
+
+    const systemPrompt = `You are a professional, verbatim audio and song lyrics transcription engine.
+CRITICAL MANDATES:
+1. Listen attentively to the ENTIRE audio recording from the very beginning (0:00) to the very last second.
+2. Transcribe EVERY SINGLE spoken or sung word in ${langDescription} (${langCode}) verbatim.
+3. Even if there are long musical interludes, background instruments, silence, pauses, or repetitions, DO NOT STOP transcribing. Continue listening and transcribing until the audio completely finishes.
+4. DO NOT summarize, DO NOT truncate, DO NOT paraphrase, and DO NOT emit commentary, markdown wrappers, or timestamps.
+5. If the audio is a song, accurately transcribe all lyrics sung throughout the entire recording.
+6. Output ONLY the raw transcribed text.`;
 
     const requestBody = {
+      systemInstruction: {
+        parts: [{ text: systemPrompt }]
+      },
       contents: [{
         parts: [
-          { text: promptText },
+          {
+            text: `Transcribe all spoken words and song lyrics in this audio completely from beginning to end without omitting any part:`
+          },
           {
             inlineData: {
               mimeType: cleanMime,
@@ -211,7 +243,12 @@ const STTEngine = {
             }
           }
         ]
-      }]
+      }],
+      generationConfig: {
+        temperature: 0.0,
+        maxOutputTokens: 8192,
+        topP: 0.1
+      }
     };
 
     let modelName = 'gemini-1.5-flash-latest';
@@ -250,7 +287,11 @@ const STTEngine = {
     }
 
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    let transcribed = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    if (langCode.startsWith('zh') && typeof TranslatorEngine !== 'undefined' && typeof TranslatorEngine._toTraditional === 'function') {
+      transcribed = TranslatorEngine._toTraditional(transcribed);
+    }
+    return transcribed;
   },
 
   _blobToBase64(blob) {

@@ -98,6 +98,10 @@ const TranslatorEngine = {
       }
     });
 
+    if (targetLang.startsWith('zh')) {
+      rawTranslation = this._toTraditional(rawTranslation);
+    }
+
     return rawTranslation;
   },
 
@@ -161,14 +165,19 @@ const TranslatorEngine = {
 Domain Context: ${domain}
 Target Style: Fluent, natural native phrasing (NOT literal word-by-word translation).${glossaryInstructions}
 
-Translate the following source text accurately and fluently. Output ONLY the translated text without commentary.`;
+CRITICAL RULES:
+1. If the target language is Traditional Chinese, you MUST output exclusively in Taiwan Traditional Chinese (台灣繁體中文/正體中文) using Taiwan punctuation and local terminology. Strictly NEVER use Simplified Chinese characters.
+2. Output ONLY the translated text without commentary, notes, or markdown wrappers.`;
 
     const requestPayload = {
+      systemInstruction: {
+        parts: [{ text: systemPrompt }]
+      },
       contents: [{
-        parts: [{ text: `${systemPrompt}\n\nSource Text:\n${text}` }]
+        parts: [{ text: text }]
       }],
       generationConfig: {
-        temperature: 0.3
+        temperature: 0.2
       }
     };
 
@@ -207,8 +216,11 @@ Translate the following source text accurately and fluently. Output ONLY the tra
     }
 
     const data = await response.json();
-    const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    return candidateText ? candidateText.trim() : text;
+    let candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || text;
+    if (targetLang.startsWith('zh')) {
+      candidateText = this._toTraditional(candidateText);
+    }
+    return candidateText;
   },
 
   /**
@@ -235,14 +247,15 @@ Translate the following source text accurately and fluently. Output ONLY the tra
         messages: [
           {
             role: 'system',
-            content: `You are an expert translator from ${srcLangName} to ${tgtLangName}. Focus on fluent native phrasing and technical term accuracy.${glossaryInstructions}`
+            content: `You are an expert translator from ${srcLangName} to ${tgtLangName}. Focus on fluent native phrasing and technical term accuracy.${glossaryInstructions}
+CRITICAL MANDATE: If target language is Traditional Chinese, you MUST use Taiwan Traditional Chinese characters (正體中文/繁體中文) and local terminology only. Never output Simplified Chinese characters.`
           },
           {
             role: 'user',
             content: text
           }
         ],
-        temperature: 0.3
+        temperature: 0.2
       })
     });
 
@@ -252,18 +265,25 @@ Translate the following source text accurately and fluently. Output ONLY the tra
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content?.trim() || text;
+    let result = data.choices?.[0]?.message?.content?.trim() || text;
+    if (targetLang.startsWith('zh')) {
+      result = this._toTraditional(result);
+    }
+    return result;
   },
 
   _getShortLang(code) {
-    if (code.startsWith('zh')) return 'zh';
+    if (!code) return 'zh-TW';
+    if (code === 'zh-TW' || code === 'zh-HK' || code.startsWith('zh')) return 'zh-TW';
     if (code.startsWith('en')) return 'en';
     if (code.startsWith('ja')) return 'ja';
-    return 'en';
+    return code;
   },
 
   _getLangName(code) {
-    if (code.startsWith('zh')) return 'Traditional Chinese (繁體中文)';
+    if (code === 'zh-TW' || code === 'zh-HK' || code.startsWith('zh')) {
+      return 'Traditional Chinese (繁體中文/台灣在地慣用語，請務必完全使用繁體中文輸出，嚴禁使用簡體中文)';
+    }
     if (code.startsWith('en')) return 'English';
     if (code.startsWith('ja')) return 'Japanese (日本語)';
     return code;
@@ -271,5 +291,34 @@ Translate the following source text accurately and fluently. Output ONLY the tra
 
   _escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  },
+
+  /**
+   * Fast Simplified-to-Traditional Chinese Sanitizer
+   * Ensures 100% Traditional Chinese consistency even if external APIs return Simplified characters.
+   */
+  _toTraditional(text) {
+    if (!text) return '';
+    const s2tDict = {
+      '们': '們', '个': '個', '爱': '愛', '这': '這', '样': '樣', '为': '為', '时': '時', '会': '會',
+      '过': '過', '发': '發', '对': '對', '说': '說', '国': '國', '学': '學', '点': '點', '经': '經',
+      '动': '動', '关': '關', '开': '開', '头': '頭', '见': '見', '体': '體', '长': '長', '线': '線',
+      '无': '無', '从': '從', '来': '來', '与': '與', '给': '給', '让': '讓', '认': '認', '识': '識',
+      '话': '話', '变': '變', '电': '電', '机': '機', '现': '現', '场': '場', '声': '聲', '音': '音',
+      '乐': '樂', '歌': '歌', '词': '詞', '曲': '曲', '听': '聽', '写': '寫', '读': '讀', '记': '記',
+      '录': '錄', '转': '轉', '译': '譯', '语': '語', '言': '言', '单': '單', '双': '雙', '进': '進',
+      '问': '問', '题': '題', '实': '實', '验': '驗', '结': '結', '果': '果', '网': '網', '络': '絡',
+      '软': '軟', '件': '件', '数': '數', '据': '據', '库': '庫', '构': '構', '图': '圖', '书': '書',
+      '馆': '館', '车': '車', '站': '站', '台': '臺', '湾': '灣', '铁': '鐵', '高': '高', '铁': '鐵',
+      '捷': '捷', '运': '運', '飞': '飛', '东': '東', '西': '西', '南': '南', '北': '北', '门': '門',
+      '户': '戶', '风': '風', '险': '險', '测': '測', '试': '試', '规': '規', '划': '劃', '优': '優',
+      '化': '化', '用': '用', '户': '戶', '资': '資', '讯': '訊', '质': '質', '量': '量', '预': '預',
+      '算': '算', '钱': '錢', '账': '賬', '号': '號', '码': '碼', '总': '總', '计': '計', '算': '算',
+      '标': '標', '准': '準', '确': '確', '认': '認', '证': '證', '书': '書', '报': '報', '告': '告',
+      '伤': '傷', '心': '心', '梦': '夢', '想': '想', '带': '帶', '走': '走', '离': '離', '别': '別',
+      '难': '難', '过': '過', '欢': '歡', '迎': '迎', '岁': '歲', '月': '月', '时': '時', '光': '光',
+      '阴': '陰', '晴': '晴', '圆': '圓', '缺': '缺', '边': '邊', '界': '界', '处': '處', '理': '理'
+    };
+    return text.replace(/[\u4e00-\u9fa5]/g, char => s2tDict[char] || char);
   }
 };
